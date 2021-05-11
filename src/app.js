@@ -2,29 +2,64 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const unless = require('express-unless');
 const bcrypt = require('bcrypt');
-const e = require('express');
+
 
 const app = express();
 const port = process.env.PORT ? process.env.PORT : 3000;
 
-// SETTINGS
+/*********************/
+// SET PORT
 app.set('port', port);
- 
+
+/*********************/
 // MIDDLEWARES
 app.use(express.json());
 
+const auth = (req, res, next) => {
+    try {
+        // agarramos el token desde el header de la peticion
+        let token = req.headers['authorization'];
 
+        // si no hay token, error
+        if (!token) {
+            throw new Error("No estas logueado");
+        }
+
+        // si hay token, le quitamos el bearer
+        token = token.replace('Bearer ', '');
+
+        // "decodificamos" el token con nuestra palabra secreta
+        jwt.verify(token, 'Secret', (err, user) => {
+            if (err) {
+                throw new Error("Token invalido");
+            }
+            //console.log(user); -> "user" contiene la info contenida en el token
+        });
+
+        // si esta todo ok, sigue
+        next();
+    }
+    catch (e) {
+        res.status(403).send({message: e.message});
+    }
+}
+
+auth.unless = unless;
+app.use(auth.unless({
+    path: [
+        { url: '/', methods: ['GET'] },
+        { url: '/login', methods: ['GET', 'POST'] },
+        { url: '/registro', methods: ['GET', 'POST'] }
+    ]
+}));
+
+/*********************/
 // ROUTES
-// Home
-app.get('/', (req, res) => {
-    res.send('hola');
-});
-
-// Registro
-app.post('/registro', async(req, res) => {
+// Registro POST
+app.post('/registro', async (req, res) => {
     try {
         // Verificamos que se envien todos los datos
-        if (!req.body.usuario || !req.body.clave || req.body.email) {
+        if (!req.body.usuario || !req.body.clave || !req.body.email) {
             throw new Error("No enviaste todos los datos necesarios");
         }
 
@@ -34,6 +69,8 @@ app.post('/registro', async(req, res) => {
         // Se encripta la clave
         const claveEncriptada = await bcrypt.hash(req.body.clave, 10);
 
+        console.log(claveEncriptada);
+
         // Se guarda el usuario con la clave encriptada
         const usuario = {
             usuario: req.body.usuario,
@@ -42,15 +79,15 @@ app.post('/registro', async(req, res) => {
         }
 
         // Si todo OK, envia la respuesta
-        res.send({message: "Registro exitoso"});
+        res.send({ message: "Registro exitoso" });
     }
-    catch {
-        res.status(413).send({message: e.message});
+    catch (e) {
+        res.status(413).send({ message: e.message });
     }
 });
 
-// Login
-app.post('/', (req, res) => {
+// Login POST
+app.post('/login', (req, res) => {
     try {
         // Verificamos que se envien todos los datos
         if (!req.body.usuario || !req.body.clave) {
@@ -66,22 +103,67 @@ app.post('/', (req, res) => {
             throw new Error("Fallo el login");
         }
 
-        // Generar sesion
+        // Generar sesion (con datos traidos de BD por ej)
         const tokenData = {
             nombre: "Pepito",
             apellido: "Suarez",
             user_id: 123
         }
+
         const token = jwt.sign(tokenData, 'Secret', {
             expiresIn: 60 * 60 * 24 // expira en 24 hs
         });
 
         // enviamos token
-        res.send({token});
+        res.send({ token });
     }
-    catch {
-
+    catch (e) {
+        res.status(413).send({ message: e.message });
     }
 });
+
+// HOME
+app.get('/', (req, res) => {
+    try {
+        res.send("HOME");
+    }
+    catch (e) {
+        res.status(413).send({ message: e.message });
+    }
+});
+
+// Login GET
+app.get('/login', (req, res) => {
+    try {
+        res.send("PAGINA LOGIN");
+    }
+    catch (e) {
+        res.status(413).send({ message: e.message });
+    }
+});
+
+// Registro GET
+app.get('/registro', (req, res) => {
+    try {
+        res.send("PAGINA REGISTRO");
+    }
+    catch (e) {
+        res.status(413).send({ message: e.message });
+    }
+});
+
+// Libros GET
+app.get('/libros', (req, res) => {
+    try {
+        // si esta ok, respondemos la peticion (consulta BD etc etc)
+        res.send({ message: "Lista de libros..." });
+    }
+    catch (e) {
+        res.status(413).send({ message: e.message });
+    }
+});
+
+
+
 
 module.exports = app;
